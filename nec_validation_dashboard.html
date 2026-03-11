@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Perez-Serize NEC Algorithm — Validation Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0f172a;--card:#1e293b;--card2:#334155;--border:#475569;--text:#e2e8f0;--muted:#94a3b8;--accent:#3b82f6;--red:#ef4444;--amber:#f59e0b;--green:#22c55e;--teal:#14b8a6;--purple:#8b5cf6}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;padding:20px}
+h1{font-size:1.4rem;margin-bottom:4px}
+h2{font-size:1.15rem;color:var(--accent);margin-bottom:12px;border-bottom:1px solid var(--border);padding-bottom:8px}
+h3{font-size:0.95rem;color:var(--muted);margin-bottom:8px}
+.header{text-align:center;padding:20px 0 10px;border-bottom:2px solid var(--accent);margin-bottom:24px}
+.header p{color:var(--muted);font-size:0.85rem}
+.stats-bar{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin:16px 0}
+.stat{background:var(--card);padding:10px 18px;border-radius:8px;text-align:center;min-width:110px}
+.stat .val{font-size:1.4rem;font-weight:700;color:var(--accent)}
+.stat .lbl{font-size:0.75rem;color:var(--muted);margin-top:2px}
+.seed-controls{display:flex;align-items:center;justify-content:center;gap:10px;margin:12px 0}
+.seed-controls input{background:var(--card);color:var(--text);border:1px solid var(--border);padding:6px 12px;border-radius:6px;width:100px;text-align:center;font-size:0.9rem}
+.seed-controls button{background:var(--accent);color:white;border:none;padding:6px 16px;border-radius:6px;cursor:pointer;font-size:0.85rem}
+.seed-controls button:hover{background:#2563eb}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:20px}
+.card{background:var(--card);border-radius:12px;padding:20px;border:1px solid var(--border)}
+.card.full{grid-column:1/-1}
+canvas{max-height:320px}
+.toggle-row{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.toggle-row label{font-size:0.85rem;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:6px}
+.toggle-row input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
+.cm{display:inline-grid;grid-template-columns:auto auto auto;gap:0;font-size:0.85rem;margin:8px 0}
+.cm .cell{padding:10px 16px;text-align:center;border:1px solid var(--border)}
+.cm .hdr{background:var(--card2);font-weight:600;color:var(--muted)}
+.cm .tp{background:rgba(34,197,94,0.15);color:var(--green);font-weight:700}
+.cm .fp{background:rgba(239,68,68,0.1);color:var(--red)}
+.cm .fn{background:rgba(245,158,11,0.15);color:var(--amber)}
+.cm .tn{background:rgba(59,130,246,0.1);color:var(--accent)}
+.metrics{font-size:0.85rem;margin-top:8px;line-height:2}
+.metrics span{font-weight:600;color:var(--accent)}
+table.detail{width:100%;border-collapse:collapse;font-size:0.8rem;margin-top:8px}
+table.detail th{background:var(--card2);color:var(--muted);padding:8px;text-align:left;border:1px solid var(--border);cursor:pointer;user-select:none}
+table.detail th:hover{color:var(--accent)}
+table.detail td{padding:6px 8px;border:1px solid var(--border)}
+table.detail tr:nth-child(even){background:rgba(255,255,255,0.02)}
+table.detail tr.nec{background:rgba(239,68,68,0.08)}
+table.detail tr.ruleout{background:rgba(245,158,11,0.05)}
+.risk-high{color:var(--red);font-weight:700}
+.risk-mod{color:var(--amber);font-weight:600}
+.risk-low{color:var(--green)}
+.subtype-tag{font-size:0.7rem;padding:2px 6px;border-radius:4px;background:var(--card2);color:var(--muted)}
+.sparkline-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-top:12px}
+.spark-card{background:var(--card2);border-radius:8px;padding:12px;border:1px solid var(--border)}
+.spark-card h4{font-size:0.8rem;margin-bottom:4px;color:var(--text)}
+.spark-card .info{font-size:0.72rem;color:var(--muted);margin-bottom:6px}
+.spark-card canvas{height:80px!important;max-height:80px!important}
+.auc-big{font-size:2.4rem;font-weight:800;text-align:center;margin:12px 0}
+.note{font-size:0.78rem;color:var(--muted);font-style:italic;margin-top:6px}
+@media(max-width:900px){.grid2,.grid3{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="header">
+    <h1>Perez-Serize NEC Predictive Tool — Validation Dashboard</h1>
+    <p>Synthetic ELGAN Cohort &bull; 9-Biomarker Raw Scoring Algorithm &bull; v4.0</p>
+    <div class="seed-controls">
+        <label style="font-size:0.85rem;color:var(--muted)">Seed:</label>
+        <input type="number" id="seed-input" value="42">
+        <button onclick="regenerate()">Regenerate Cohort</button>
+    </div>
+</div>
+
+<div id="stats-bar" class="stats-bar"></div>
+
+<div class="grid2">
+    <div class="card">
+        <h2>ROC Curve</h2>
+        <div class="auc-big" id="auc-display"></div>
+        <canvas id="roc-chart"></canvas>
+        <div class="note" id="auc-ci"></div>
+    </div>
+    <div class="card">
+        <h2>Score Distribution</h2>
+        <canvas id="dist-chart"></canvas>
+    </div>
+</div>
+
+<div class="grid2">
+    <div class="card">
+        <h2>Sensitivity / Specificity vs Threshold</h2>
+        <canvas id="sensspec-chart"></canvas>
+        <div class="note" id="youden-note"></div>
+    </div>
+    <div class="card">
+        <h2>Confusion Matrices</h2>
+        <div class="grid2" style="gap:16px">
+            <div>
+                <h3>At Score &ge; 4 (Moderate)</h3>
+                <div id="cm-4"></div>
+                <div id="cm-4-metrics" class="metrics"></div>
+            </div>
+            <div>
+                <h3>At Score &ge; 10 (High)</h3>
+                <div id="cm-10"></div>
+                <div id="cm-10-metrics" class="metrics"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card full" style="margin-bottom:20px">
+    <h2>Waterfall — All Patients by Score</h2>
+    <canvas id="waterfall-chart" style="max-height:220px"></canvas>
+</div>
+
+<div class="grid2">
+    <div class="card">
+        <h2>Old vs New Algorithm</h2>
+        <div class="toggle-row">
+            <label><input type="checkbox" id="toggle-old" onchange="toggleOldNew()"> Show OLD algorithm (remove WBC + Calprotectin)</label>
+        </div>
+        <canvas id="oldnew-chart"></canvas>
+        <div id="oldnew-note" class="note"></div>
+    </div>
+    <div class="card">
+        <h2>Missing Data Impact</h2>
+        <canvas id="missing-chart"></canvas>
+        <div class="note">Mean NEC raw score by number of active markers. More markers with abnormal values = higher score.</div>
+    </div>
+</div>
+
+<div class="card full" style="margin-bottom:20px">
+    <h2>Per-Subtype Sensitivity</h2>
+    <div id="subtype-table"></div>
+</div>
+
+<div class="card full" style="margin-bottom:20px">
+    <h2>NEC Case Sparklines — Biomarker Trajectories</h2>
+    <div id="sparkline-container" class="sparkline-grid"></div>
+</div>
+
+<div class="card full">
+    <h2>Per-Patient Detail Table</h2>
+    <div style="overflow-x:auto">
+        <table class="detail" id="detail-table">
+            <thead><tr id="detail-head"></tr></thead>
+            <tbody id="detail-body"></tbody>
+        </table>
+    </div>
+</div>
+
+<div style="text-align:center;padding:30px 0;color:var(--muted);font-size:0.8rem">
+    Perez-Serize NEC Predictive Tool &mdash; Synthetic Validation Dashboard<br>
+    Algorithm identical to clinical tool v4.0 (9 biomarkers, raw scoring, no dynamic multiplier)<br>
+    Dataset is <strong>synthetic</strong> &mdash; for algorithm validation only, not clinical evidence
+</div>
+
+<script>
+// ===== SEEDED PRNG (Mulberry32) =====
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+var rng;
+function rand(){return rng()}
+function randInt(a,b){return Math.floor(rand()*(b-a+1))+a}
+function randFloat(a,b){return a+rand()*(b-a)}
+function randNorm(mean,sd){var u=1-rand(),v=rand();return mean+sd*Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)}
+function clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v))}
+function pick(arr){return arr[Math.floor(rand()*arr.length)]}
+
+// ===== ALGORITHM (EXACT COPY FROM CLINICAL TOOL) =====
+const WEIGHTS={
+    anc:{absolute:3,trajectory:3},
+    wbc:{absolute:2.5,trajectory:2.5},
+    platelets:{absolute:2.5,trajectory:2.5},
+    crp:{absolute:2.5,trajectory:2.5},
+    fecalCalprotectin:{absolute:3,trajectory:3},
+    ph:{absolute:3,trajectory:3},
+    lactate:{absolute:2.5,trajectory:2.5},
+    baseDeficit:{absolute:2.5,trajectory:2.5},
+    eosinophils:{absolute:3,trajectory:3}
+};
+
+function calculateBiomarkerScore(marker,values,weight){
+    var latest=values[values.length-1],first=values[0];
+    var absoluteScore=0,trajectoryScore=0,trend='stable',reasoning=[],formula='';
+    switch(marker){
+        case'anc':if(latest<500)absoluteScore=1;else if(latest<1000)absoluteScore=0.7;else if(latest<1500)absoluteScore=0.3;break;
+        case'wbc':if(latest<3000)absoluteScore=1;else if(latest<4000)absoluteScore=0.7;else if(latest<6000)absoluteScore=0.3;break;
+        case'platelets':if(latest<50)absoluteScore=1;else if(latest<100)absoluteScore=0.7;else if(latest<150)absoluteScore=0.3;break;
+        case'crp':if(latest>50)absoluteScore=1;else if(latest>20)absoluteScore=0.7;else if(latest>10)absoluteScore=0.3;break;
+        case'fecalCalprotectin':if(latest>600)absoluteScore=1;else if(latest>300)absoluteScore=0.7;else if(latest>150)absoluteScore=0.3;break;
+        case'ph':if(latest<7.20)absoluteScore=1;else if(latest<7.25)absoluteScore=0.7;else if(latest<7.30)absoluteScore=0.3;break;
+        case'lactate':if(latest>4)absoluteScore=1;else if(latest>2.5)absoluteScore=0.7;else if(latest>2)absoluteScore=0.3;break;
+        case'baseDeficit':if(latest<-10)absoluteScore=1;else if(latest<-6)absoluteScore=0.7;else if(latest<-3)absoluteScore=0.3;break;
+        case'eosinophils':if(latest<20)absoluteScore=1;else if(latest<50)absoluteScore=0.7;else if(latest<100)absoluteScore=0.3;break;
+    }
+    var percentChange=((latest-first)/Math.abs(first||1))*100;
+    if(marker==='ph'){
+        var ac=latest-first,drop=Math.abs(ac);
+        if(ac<0&&drop>0.10){trajectoryScore=1;trend='worsening'}
+        else if(ac<0&&drop>0.05){trajectoryScore=0.6;trend='worsening'}
+        else if(ac>0&&drop>0.10){trend='improving'}
+    }else{
+        var isW;
+        if(marker==='crp'||marker==='lactate'||marker==='fecalCalprotectin')isW=percentChange>0;
+        else if(marker==='baseDeficit')isW=latest<first;
+        else isW=percentChange<0;
+        if(Math.abs(percentChange)>50&&isW){trajectoryScore=1;trend='worsening'}
+        else if(Math.abs(percentChange)>30&&isW){trajectoryScore=0.6;trend='worsening'}
+        else if(Math.abs(percentChange)>50&&!isW){trend='improving'}
+    }
+    return{absolute:absoluteScore*weight.absolute,trajectory:trajectoryScore*weight.trajectory,total:(absoluteScore*weight.absolute)+(trajectoryScore*weight.trajectory),trend:trend}
+}
+
+function scorePatient(patient,excludeMarkers){
+    if(!patient.labs||patient.labs.length<1)return{score:0,risk:'low',raw:0,markerCount:0};
+    var recent=patient.labs.slice(-5),totalScore=0,markerCount=0;
+    var excl=excludeMarkers||[];
+    for(var m in WEIGHTS){
+        if(excl.indexOf(m)>=0)continue;
+        var vals=recent.map(function(l){return l[m]}).filter(function(v){return v!==null&&v!==undefined});
+        if(vals.length>=2){
+            var s=calculateBiomarkerScore(m,vals,WEIGHTS[m]);
+            totalScore+=s.total;
+            markerCount++;
+        }else if(vals.length===1){
+            var s=calculateBiomarkerScore(m,vals,WEIGHTS[m]);
+            totalScore+=s.absolute;
+            markerCount++;
+        }
+    }
+    var score=Math.round(totalScore);
+    var risk=score>=12?'high':score>=4?'moderate':'low';
+    return{score:score,risk:risk,raw:totalScore,markerCount:markerCount}
+}
+
+// ===== DATASET GENERATOR =====
+var CATEGORIES=[
+    {name:'NEC Confirmed',key:'nec',n:24,subtypes:[
+        {name:'Classic',key:'classic',n:10},
+        {name:'Leukopenia-predominant',key:'subtle',n:5},
+        {name:'Calprotectin-revealed',key:'calpro',n:4},
+        {name:'Fulminant',key:'fulminant',n:5}
+    ]},
+    {name:'NEC Rule-out',key:'ruleout',n:20,subtypes:null},
+    {name:'Sepsis Mimic',key:'sepsis',n:30,subtypes:null},
+    {name:'Other Comorbidity',key:'other',n:46,subtypes:null},
+    {name:'Healthy ELGAN',key:'healthy',n:80,subtypes:null}
+];
+
+function generateCohort(){
+    var pts=[];var id=1;
+    CATEGORIES.forEach(function(cat){
+        if(cat.subtypes){
+            cat.subtypes.forEach(function(st){
+                for(var i=0;i<st.n;i++){pts.push(generatePatient(id++,cat.key,st.key))}
+            });
+        }else{
+            for(var i=0;i<cat.n;i++){pts.push(generatePatient(id++,cat.key,null))}
+        }
+    });
+    return pts;
+}
+
+function generatePatient(id,category,subtype){
+    var ga=clamp(Math.round(randNorm(25.5,1.2)),23,27);
+    var bw=clamp(Math.round(randNorm(420+(ga-23)*130,80)),380,1100);
+    var dolStart=randInt(5,8);
+    var nDraws,labs;
+    if(category==='nec'){
+        nDraws=subtype==='fulminant'?randInt(2,3):randInt(4,6);
+        labs=generateNECLabs(nDraws,subtype,dolStart);
+    }else if(category==='ruleout'){
+        nDraws=randInt(3,5);
+        labs=generateRuleoutLabs(nDraws,dolStart);
+    }else if(category==='sepsis'){
+        nDraws=randInt(3,5);
+        labs=generateSepsisLabs(nDraws,dolStart);
+    }else if(category==='other'){
+        nDraws=randInt(3,4);
+        labs=generateOtherLabs(nDraws,dolStart);
+    }else{
+        nDraws=randInt(3,4);
+        labs=generateHealthyLabs(nDraws,dolStart);
+    }
+    return{id:'ELGAN-'+String(id).padStart(3,'0'),ga:ga,bw:bw,dolStart:dolStart,category:category,subtype:subtype,labs:labs,isNEC:category==='nec'}
+}
+
+function noise(val,pct){return val*(1+randFloat(-pct,pct))}
+function noiseAdd(val,amt){return val+randFloat(-amt,amt)}
+
+function applyMissing(lab,drawIdx){
+    // Missing data probabilities
+    if(rand()>0.90)lab.anc=null;
+    if(rand()>0.92)lab.wbc=null;
+    if(rand()>0.95)lab.platelets=null;
+    if(rand()>0.78)lab.eosinophils=null;
+    if(rand()>0.55)lab.crp=null;
+    if(rand()>0.60)lab.ph=null;
+    if(rand()>0.55)lab.baseDeficit=null;
+    if(rand()>0.50)lab.lactate=null;
+    // Calprotectin almost never drawn — handled per-patient in generator
+    return lab;
+}
+
+function makeLab(anc,wbc,plt,crp,fcal,ph,lac,bd,eos){
+    return{anc:Math.round(anc),wbc:Math.round(wbc),platelets:Math.round(plt),crp:Math.round(crp*10)/10,fecalCalprotectin:fcal!==null?Math.round(fcal):null,ph:Math.round(ph*100)/100,lactate:Math.round(lac*10)/10,baseDeficit:Math.round(bd*10)/10,eosinophils:Math.round(eos)}
+}
+
+function generateNECLabs(n,subtype,dolStart){
+    var labs=[];
+    var drawCalprotectin=subtype==='calpro'||(subtype==='classic'&&rand()<0.15);
+    for(var i=0;i<n;i++){
+        var t=i/(n-1); // 0 to 1 progression
+        var lab;
+        if(subtype==='classic'){
+            lab=makeLab(
+                noise(3500-t*2800,0.12),   // ANC: 3500→700
+                noise(12000-t*8500,0.10),   // WBC: 12000→3500
+                noise(200-t*160,0.10),      // Plt: 200→40
+                noise(5+t*65,0.15),         // CRP: 5→70
+                drawCalprotectin&&t>0.5?noise(150+t*500,0.15):null, // Calpro late
+                noiseAdd(7.36-t*0.18,0.01), // pH: 7.36→7.18
+                noise(1.5+t*4.5,0.12),      // Lac: 1.5→6
+                noiseAdd(-2-t*10,0.3),       // BD: -2→-12
+                noise(180-t*170,0.12)        // Eos: 180→10
+            );
+        }else if(subtype==='subtle'){
+            // WBC drops, ANC only mildly low, other markers slow
+            lab=makeLab(
+                noise(2200-t*900,0.12),     // ANC: 2200→1300 (borderline, not dramatic)
+                noise(9000-t*6000,0.10),    // WBC: 9000→3000 (the key signal)
+                noise(170-t*50,0.10),       // Plt: 170→120 (mild drop)
+                noise(6+t*18,0.15),         // CRP: 6→24 (modest)
+                drawCalprotectin&&t>0.6?noise(200+t*450,0.15):null,
+                noiseAdd(7.34-t*0.08,0.01), // pH: 7.34→7.26 (mild)
+                noise(1.6+t*1.5,0.12),      // Lac: 1.6→3.1 (modest)
+                noiseAdd(-2.5-t*4,0.3),     // BD: -2.5→-6.5
+                noise(120-t*60,0.12)         // Eos: 120→60
+            );
+        }else if(subtype==='calpro'){
+            // Conventional markers equivocal, calprotectin elevated
+            lab=makeLab(
+                noise(2000-t*600,0.12),     // ANC: 2000→1400 (borderline)
+                noise(8500-t*3500,0.10),    // WBC: 8500→5000 (borderline)
+                noise(160-t*30,0.10),       // Plt: 160→130 (barely drops)
+                noise(7+t*15,0.15),         // CRP: 7→22 (modest)
+                t>0.3?noise(180+t*500,0.15):null, // Calpro: drawn early, rising fast
+                noiseAdd(7.33-t*0.06,0.01), // pH: 7.33→7.27 (mild)
+                noise(1.7+t*1.2,0.12),      // Lac: 1.7→2.9 (mild)
+                noiseAdd(-2.5-t*3,0.3),     // BD: -2.5→-5.5
+                noise(130-t*50,0.12)         // Eos: 130→80
+            );
+        }else{ // fulminant
+            lab=makeLab(
+                noise(4000-t*3700,0.10),    // ANC: 4000→300 (crashes)
+                noise(11000-t*8500,0.08),   // WBC: 11000→2500
+                noise(180-t*155,0.08),      // Plt: 180→25
+                noise(4+t*80,0.12),         // CRP: 4→84
+                null,                        // No time for calpro
+                noiseAdd(7.38-t*0.25,0.01), // pH: 7.38→7.13
+                noise(1.4+t*6,0.10),        // Lac: 1.4→7.4
+                noiseAdd(-1.5-t*14,0.3),    // BD: -1.5→-15.5
+                noise(200-t*195,0.10)        // Eos: 200→5
+            );
+        }
+        lab=applyMissing(lab,i);
+        // Ensure at least some core markers survive
+        if(i===0||i===n-1){
+            if(lab.anc===null)lab.anc=Math.round(noise(subtype==='classic'?(3500-t*2800):(2200-t*900),0.12));
+            if(lab.wbc===null)lab.wbc=Math.round(noise(subtype==='subtle'?(9000-t*6000):(12000-t*8500),0.10));
+        }
+        labs.push(lab);
+    }
+    return labs;
+}
+
+function generateRuleoutLabs(n,dolStart){
+    var labs=[];
+    for(var i=0;i<n;i++){
+        var t=i/(n-1);
+        // Worsen first half, then improve
+        var phase=t<0.5?t*2:(2-t*2); // 0→1→0
+        var lab=makeLab(
+            noise(3000-phase*1200,0.12),
+            noise(10000-phase*3000,0.10),
+            noise(170-phase*40,0.10),
+            noise(5+phase*20,0.15),
+            null,
+            noiseAdd(7.34-phase*0.06,0.01),
+            noise(1.5+phase*1.2,0.12),
+            noiseAdd(-2-phase*3,0.3),
+            noise(140-phase*50,0.12)
+        );
+        lab=applyMissing(lab,i);
+        labs.push(lab);
+    }
+    return labs;
+}
+
+function generateSepsisLabs(n,dolStart){
+    var labs=[];
+    var severity=randFloat(0.4,1.0); // how bad the sepsis is
+    for(var i=0;i<n;i++){
+        var t=i/(n-1);
+        // CRP/WBC worsen, but plt/eos more stable than NEC. Later draws may improve.
+        var peak=t<0.6?t/0.6:1-(t-0.6)/0.4; // peak at 60%
+        var lab=makeLab(
+            noise(2800-peak*severity*1500,0.12),  // ANC: can drop
+            noise(11000-peak*severity*5000,0.10),  // WBC: drops with sepsis too
+            noise(180-peak*severity*50,0.10),      // Plt: mild drop (less than NEC)
+            noise(4+peak*severity*50,0.15),        // CRP: can go very high
+            null,
+            noiseAdd(7.35-peak*severity*0.10,0.01),
+            noise(1.5+peak*severity*2.5,0.12),
+            noiseAdd(-2-peak*severity*5,0.3),
+            noise(150-peak*severity*40,0.12)        // Eos: mild drop (less than NEC)
+        );
+        lab=applyMissing(lab,i);
+        labs.push(lab);
+    }
+    return labs;
+}
+
+function generateOtherLabs(n,dolStart){
+    var labs=[];
+    for(var i=0;i<n;i++){
+        var lab=makeLab(
+            noise(randFloat(2000,5000),0.08),
+            noise(randFloat(7000,14000),0.08),
+            noise(randFloat(130,250),0.06),
+            noise(randFloat(2,18),0.15),
+            null,
+            noiseAdd(randFloat(7.30,7.40),0.01),
+            noise(randFloat(1.0,2.2),0.10),
+            noiseAdd(randFloat(-4,-1),0.3),
+            noise(randFloat(80,200),0.10)
+        );
+        lab=applyMissing(lab,i);
+        labs.push(lab);
+    }
+    return labs;
+}
+
+function generateHealthyLabs(n,dolStart){
+    var labs=[];
+    // Pick a baseline and fluctuate around it
+    var bAnc=randFloat(3500,8000),bWbc=randFloat(8000,18000),bPlt=randFloat(180,320);
+    var bCrp=randFloat(0.5,6),bPh=randFloat(7.34,7.42),bLac=randFloat(0.8,1.6);
+    var bBd=randFloat(-2,1),bEos=randFloat(120,300);
+    for(var i=0;i<n;i++){
+        var lab=makeLab(
+            noise(bAnc,0.08),noise(bWbc,0.06),noise(bPlt,0.05),
+            noise(bCrp,0.20),null,noiseAdd(bPh,0.01),
+            noise(bLac,0.10),noiseAdd(bBd,0.4),noise(bEos,0.08)
+        );
+        lab=applyMissing(lab,i);
+        labs.push(lab);
+    }
+    return labs;
+}
+
+// ===== VALIDATION ENGINE =====
+function runValidation(patients,excludeMarkers){
+    var results=[];
+    patients.forEach(function(p){
+        var r=scorePatient(p,excludeMarkers);
+        results.push({patient:p,score:r.score,risk:r.risk,markerCount:r.markerCount,raw:r.raw,isNEC:p.isNEC});
+    });
+    return results;
+}
+
+function calcROC(results){
+    var pts=[];
+    for(var thresh=0;thresh<=50;thresh+=0.5){
+        var tp=0,fp=0,tn=0,fn=0;
+        results.forEach(function(r){
+            if(r.score>=thresh){r.isNEC?tp++:fp++}else{r.isNEC?fn++:tn++}
+        });
+        var sens=tp+fn>0?tp/(tp+fn):0;
+        var spec=tn+fp>0?tn/(tn+fp):0;
+        var fpr=1-spec;
+        pts.push({thresh:thresh,sens:sens,spec:spec,fpr:fpr,tp:tp,fp:fp,tn:tn,fn:fn});
+    }
+    // AUC via trapezoidal rule
+    var auc=0;
+    for(var i=1;i<pts.length;i++){
+        auc+=Math.abs(pts[i].fpr-pts[i-1].fpr)*(pts[i].sens+pts[i-1].sens)/2;
+    }
+    return{points:pts,auc:auc};
+}
+
+function bootstrapAUC(results,nIter){
+    var aucs=[];
+    for(var b=0;b<nIter;b++){
+        var sample=[];
+        for(var i=0;i<results.length;i++){sample.push(results[Math.floor(rand()*results.length)])}
+        aucs.push(calcROC(sample).auc);
+    }
+    aucs.sort(function(a,b){return a-b});
+    return{lo:aucs[Math.floor(nIter*0.025)],hi:aucs[Math.floor(nIter*0.975)]};
+}
+
+function confusionAt(results,thresh){
+    var tp=0,fp=0,tn=0,fn=0;
+    results.forEach(function(r){
+        if(r.score>=thresh){r.isNEC?tp++:fp++}else{r.isNEC?fn++:tn++}
+    });
+    var sens=tp+fn>0?tp/(tp+fn):0,spec=tn+fp>0?tn/(tn+fp):0;
+    var ppv=tp+fp>0?tp/(tp+fp):0,npv=tn+fn>0?tn/(tn+fn):0;
+    var acc=(tp+tn)/(tp+fp+tn+fn);
+    var f1=sens+ppv>0?2*sens*ppv/(sens+ppv):0;
+    return{tp:tp,fp:fp,tn:tn,fn:fn,sens:sens,spec:spec,ppv:ppv,npv:npv,acc:acc,f1:f1};
+}
+
+// ===== CHART INSTANCES =====
+var charts={};
+function destroyCharts(){for(var k in charts){if(charts[k])charts[k].destroy()}}
+
+// ===== RENDERING =====
+function renderAll(patients){
+    destroyCharts();
+    var results=runValidation(patients);
+    var roc=calcROC(results);
+    var ci=bootstrapAUC(results,500);
+
+    // Stats bar
+    var necN=patients.filter(function(p){return p.isNEC}).length;
+    var meanGA=(patients.reduce(function(s,p){return s+p.ga},0)/patients.length).toFixed(1);
+    var meanBW=Math.round(patients.reduce(function(s,p){return s+p.bw},0)/patients.length);
+    var calproDrawn=patients.filter(function(p){return p.labs.some(function(l){return l.fecalCalprotectin!==null})}).length;
+    document.getElementById('stats-bar').innerHTML=
+        '<div class="stat"><div class="val">'+patients.length+'</div><div class="lbl">Patients</div></div>'+
+        '<div class="stat"><div class="val">'+necN+'</div><div class="lbl">NEC Cases ('+Math.round(necN/patients.length*100)+'%)</div></div>'+
+        '<div class="stat"><div class="val">'+meanGA+'</div><div class="lbl">Mean GA (wk)</div></div>'+
+        '<div class="stat"><div class="val">'+meanBW+'</div><div class="lbl">Mean BW (g)</div></div>'+
+        '<div class="stat"><div class="val">'+calproDrawn+'</div><div class="lbl">Had Calprotectin</div></div>'+
+        '<div class="stat"><div class="val" style="color:var(--green)">'+roc.auc.toFixed(3)+'</div><div class="lbl">AUC</div></div>';
+
+    // AUC
+    document.getElementById('auc-display').innerHTML='<span style="color:var(--green)">AUC = '+roc.auc.toFixed(3)+'</span>';
+    document.getElementById('auc-ci').textContent='95% CI: '+ci.lo.toFixed(3)+' — '+ci.hi.toFixed(3)+' (500 bootstrap iterations)';
+
+    renderROC(roc);
+    renderDistribution(results);
+    renderSensSpec(roc);
+    renderConfusion(results);
+    renderWaterfall(results);
+    renderOldNew(patients,roc);
+    renderMissing(results);
+    renderSubtypeTable(patients,results);
+    renderSparklines(patients);
+    renderDetailTable(patients,results);
+}
+
+function renderROC(roc){
+    var ctx=document.getElementById('roc-chart').getContext('2d');
+    charts.roc=new Chart(ctx,{type:'line',data:{datasets:[
+        {label:'ROC (AUC='+roc.auc.toFixed(3)+')',data:roc.points.map(function(p){return{x:p.fpr,y:p.sens}}),borderColor:'#3b82f6',borderWidth:2,pointRadius:0,fill:false},
+        {label:'Random',data:[{x:0,y:0},{x:1,y:1}],borderColor:'#475569',borderWidth:1,borderDash:[5,5],pointRadius:0,fill:false}
+    ]},options:{responsive:true,plugins:{legend:{labels:{color:'#94a3b8'}}},scales:{x:{title:{display:true,text:'1 - Specificity (FPR)',color:'#94a3b8'},min:0,max:1,ticks:{color:'#64748b'},grid:{color:'#1e293b'}},y:{title:{display:true,text:'Sensitivity (TPR)',color:'#94a3b8'},min:0,max:1,ticks:{color:'#64748b'},grid:{color:'#1e293b'}}}}});
+}
+
+function renderDistribution(results){
+    var necScores=results.filter(function(r){return r.isNEC}).map(function(r){return r.score});
+    var ctrlScores=results.filter(function(r){return!r.isNEC}).map(function(r){return r.score});
+    var bins=[];for(var i=0;i<50;i+=2)bins.push(i);
+    function hist(scores){var h=new Array(bins.length).fill(0);scores.forEach(function(s){var b=Math.min(Math.floor(s/2),bins.length-1);h[b]++});return h}
+    var ctx=document.getElementById('dist-chart').getContext('2d');
+    charts.dist=new Chart(ctx,{type:'bar',data:{labels:bins.map(function(b){return b+'-'+(b+4)}),datasets:[
+        {label:'NEC (n='+necScores.length+')',data:hist(necScores),backgroundColor:'rgba(239,68,68,0.6)',borderColor:'#ef4444',borderWidth:1},
+        {label:'Controls (n='+ctrlScores.length+')',data:hist(ctrlScores),backgroundColor:'rgba(34,197,94,0.4)',borderColor:'#22c55e',borderWidth:1}
+    ]},options:{responsive:true,plugins:{legend:{labels:{color:'#94a3b8'}}},scales:{x:{title:{display:true,text:'Raw Score',color:'#94a3b8'},ticks:{color:'#64748b',maxRotation:45},grid:{display:false}},y:{ticks:{color:'#64748b'},grid:{color:'#1e293b'}}}}});
+}
+
+function renderSensSpec(roc){
+    var thresholds=roc.points.filter(function(p,i){return i%2===0});
+    var best=0,bestJ=-1;
+    roc.points.forEach(function(p){var j=p.sens+p.spec-1;if(j>bestJ){bestJ=j;best=p.thresh}});
+    document.getElementById('youden-note').textContent="Youden's J optimal cutoff: "+best+' (J = '+bestJ.toFixed(3)+')';
+    var ctx=document.getElementById('sensspec-chart').getContext('2d');
+    charts.sensspec=new Chart(ctx,{type:'line',data:{labels:thresholds.map(function(p){return p.thresh}),datasets:[
+        {label:'Sensitivity',data:thresholds.map(function(p){return p.sens}),borderColor:'#ef4444',borderWidth:2,pointRadius:0,fill:false},
+        {label:'Specificity',data:thresholds.map(function(p){return p.spec}),borderColor:'#3b82f6',borderWidth:2,pointRadius:0,fill:false}
+    ]},options:{responsive:true,plugins:{legend:{labels:{color:'#94a3b8'}},annotation:{}},scales:{x:{title:{display:true,text:'Score Threshold',color:'#94a3b8'},ticks:{color:'#64748b'},grid:{color:'#1e293b'}},y:{min:0,max:1,ticks:{color:'#64748b'},grid:{color:'#1e293b'}}}}});
+}
+
+function renderConfusion(results){
+    [4,10].forEach(function(thresh){
+        var cm=confusionAt(results,thresh);
+        var el=document.getElementById('cm-'+thresh);
+        el.innerHTML='<div class="cm">'+
+            '<div class="cell hdr"></div><div class="cell hdr">Predicted +</div><div class="cell hdr">Predicted -</div>'+
+            '<div class="cell hdr">Actual NEC</div><div class="cell tp">'+cm.tp+'</div><div class="cell fn">'+cm.fn+'</div>'+
+            '<div class="cell hdr">Actual No NEC</div><div class="cell fp">'+cm.fp+'</div><div class="cell tn">'+cm.tn+'</div>'+
+            '</div>';
+        var mel=document.getElementById('cm-'+thresh+'-metrics');
+        mel.innerHTML='Sens: <span>'+(cm.sens*100).toFixed(1)+'%</span> &bull; Spec: <span>'+(cm.spec*100).toFixed(1)+'%</span> &bull; PPV: <span>'+(cm.ppv*100).toFixed(1)+'%</span> &bull; NPV: <span>'+(cm.npv*100).toFixed(1)+'%</span><br>Accuracy: <span>'+(cm.acc*100).toFixed(1)+'%</span> &bull; F1: <span>'+cm.f1.toFixed(3)+'</span>';
+    });
+}
+
+function renderWaterfall(results){
+    var sorted=results.slice().sort(function(a,b){return b.score-a.score});
+    var colors=sorted.map(function(r){return r.isNEC?'rgba(239,68,68,0.8)':r.patient.category==='ruleout'?'rgba(245,158,11,0.5)':'rgba(100,116,139,0.4)'});
+    var ctx=document.getElementById('waterfall-chart').getContext('2d');
+    charts.waterfall=new Chart(ctx,{type:'bar',data:{labels:sorted.map(function(r){return r.patient.id}),datasets:[{data:sorted.map(function(r){return r.score}),backgroundColor:colors,borderWidth:0}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){var r=sorted[c.dataIndex];return r.patient.id+': '+r.score+' ('+r.patient.category+(r.patient.subtype?' / '+r.patient.subtype:'')+')' }}},annotation:{annotations:{line4:{type:'line',yMin:4,yMax:4,borderColor:'rgba(245,158,11,0.5)',borderWidth:1,borderDash:[4,4],label:{display:true,content:'Moderate (4)',color:'#f59e0b',font:{size:10},position:'start'}},line10:{type:'line',yMin:10,yMax:10,borderColor:'rgba(239,68,68,0.5)',borderWidth:1,borderDash:[4,4],label:{display:true,content:'High (10)',color:'#ef4444',font:{size:10},position:'start'}}}}},scales:{x:{display:false},y:{min:0,max:50,ticks:{color:'#64748b'},grid:{color:'#1e293b'}}}}});
+}
+
+function renderOldNew(patients,newROC){
+    var oldResults=runValidation(patients,['wbc','fecalCalprotectin']);
+    var oldROC=calcROC(oldResults);
+    var ctx=document.getElementById('oldnew-chart').getContext('2d');
+    charts.oldnew=new Chart(ctx,{type:'line',data:{datasets:[
+        {label:'NEW 9-marker (AUC='+newROC.auc.toFixed(3)+')',data:newROC.points.map(function(p){return{x:p.fpr,y:p.sens}}),borderColor:'#3b82f6',borderWidth:2,pointRadius:0,fill:false},
+        {label:'OLD 7-marker (AUC='+oldROC.auc.toFixed(3)+')',data:oldROC.points.map(function(p){return{x:p.fpr,y:p.sens}}),borderColor:'#64748b',borderWidth:2,borderDash:[6,4],pointRadius:0,fill:false,hidden:!document.getElementById('toggle-old').checked},
+        {label:'Random',data:[{x:0,y:0},{x:1,y:1}],borderColor:'#334155',borderWidth:1,borderDash:[3,3],pointRadius:0,fill:false}
+    ]},options:{responsive:true,plugins:{legend:{labels:{color:'#94a3b8'}}},scales:{x:{title:{display:true,text:'1 - Specificity',color:'#94a3b8'},min:0,max:1,ticks:{color:'#64748b'},grid:{color:'#1e293b'}},y:{title:{display:true,text:'Sensitivity',color:'#94a3b8'},min:0,max:1,ticks:{color:'#64748b'},grid:{color:'#1e293b'}}}}});
+    // Count category changes
+    var newResults=runValidation(patients);
+    var upgrades=0,downgrades=0;
+    for(var i=0;i<patients.length;i++){
+        var nr=newResults[i],or=oldResults[i];
+        if(nr.score>or.score+5&&nr.patient.isNEC)upgrades++;
+    }
+    var noteEl=document.getElementById('oldnew-note');
+    noteEl.textContent='AUC improvement: '+(newROC.auc-oldROC.auc>0?'+':'')+((newROC.auc-oldROC.auc)*100).toFixed(1)+' points. '+upgrades+' NEC cases scored higher with new markers.';
+    noteEl.style.display=document.getElementById('toggle-old').checked?'block':'none';
+}
+
+function toggleOldNew(){
+    var show=document.getElementById('toggle-old').checked;
+    if(charts.oldnew){
+        charts.oldnew.data.datasets[1].hidden=!show;
+        charts.oldnew.update();
+    }
+    document.getElementById('oldnew-note').style.display=show?'block':'none';
+}
+
+function renderMissing(results){
+    var necResults=results.filter(function(r){return r.isNEC});
+    var groups={};
+    necResults.forEach(function(r){
+        var k=r.markerCount;
+        if(!groups[k])groups[k]={scores:[],n:0};
+        groups[k].scores.push(r.score);
+        groups[k].n++;
+    });
+    var labels=[],means=[],counts=[];
+    for(var k=3;k<=9;k++){
+        if(groups[k]){
+            labels.push(k+' markers');
+            means.push(groups[k].scores.reduce(function(a,b){return a+b},0)/groups[k].n);
+            counts.push(groups[k].n);
+        }
+    }
+    var ctx=document.getElementById('missing-chart').getContext('2d');
+    charts.missing=new Chart(ctx,{type:'bar',data:{labels:labels,datasets:[{label:'Mean NEC Score',data:means,backgroundColor:'rgba(239,68,68,0.6)',borderColor:'#ef4444',borderWidth:1}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return'Mean: '+means[c.dataIndex].toFixed(1)+' (n='+counts[c.dataIndex]+')'}}}},scales:{x:{ticks:{color:'#64748b'},grid:{display:false}},y:{min:0,max:50,ticks:{color:'#64748b'},grid:{color:'#1e293b'}}}}});
+}
+
+function renderSubtypeTable(patients,results){
+    var subtypes=['classic','subtle','calpro','fulminant'];
+    var html='<table class="detail"><thead><tr><th>NEC Subtype</th><th>N</th><th>Mean Score</th><th>Sens @4</th><th>Sens @10</th><th>Missed @4</th></tr></thead><tbody>';
+    subtypes.forEach(function(st){
+        var sub=[];
+        results.forEach(function(r,i){if(patients[i].subtype===st)sub.push(r)});
+        if(sub.length===0)return;
+        var mean=sub.reduce(function(a,r){return a+r.score},0)/sub.length;
+        var above4=sub.filter(function(r){return r.score>=4}).length;
+        var above10=sub.filter(function(r){return r.score>=10}).length;
+        var missed=sub.filter(function(r){return r.score<4});
+        html+='<tr><td>'+st+'</td><td>'+sub.length+'</td><td>'+mean.toFixed(1)+'</td><td>'+(above4/sub.length*100).toFixed(0)+'%</td><td>'+(above10/sub.length*100).toFixed(0)+'%</td><td>'+(missed.length>0?missed.map(function(r){return r.patient.id}).join(', '):'None')+'</td></tr>';
+    });
+    html+='</tbody></table>';
+    document.getElementById('subtype-table').innerHTML=html;
+}
+
+function renderSparklines(patients){
+    var necPts=patients.filter(function(p){return p.isNEC});
+    var container=document.getElementById('sparkline-container');
+    container.innerHTML='';
+    var MARKERS=['anc','wbc','platelets','crp','ph','eosinophils'];
+    var COLORS={'anc':'#ef4444','wbc':'#06b6d4','platelets':'#8b5cf6','crp':'#f59e0b','ph':'#22c55e','eosinophils':'#ec4899'};
+    necPts.forEach(function(p){
+        var div=document.createElement('div');
+        div.className='spark-card';
+        var r=scorePatient(p);
+        div.innerHTML='<h4>'+p.id+' <span class="subtype-tag">'+p.subtype+'</span> <span class="'+(r.risk==='high'?'risk-high':r.risk==='moderate'?'risk-mod':'risk-low')+'">'+r.score+'</span></h4><div class="info">GA '+p.ga+'wk, BW '+p.bw+'g, '+p.labs.length+' draws</div><canvas id="spark-'+p.id+'"></canvas>';
+        container.appendChild(div);
+        var canvas=document.getElementById('spark-'+p.id);
+        var datasets=[];
+        MARKERS.forEach(function(m){
+            var data=p.labs.map(function(l,i){
+                if(l[m]===null||l[m]===undefined)return null;
+                // Normalize for display
+                if(m==='anc'||m==='wbc')return l[m]/100;
+                if(m==='platelets')return l[m];
+                if(m==='crp')return l[m];
+                if(m==='ph')return(l[m]-7)*1000;
+                if(m==='eosinophils')return l[m];
+                return l[m];
+            });
+            datasets.push({label:m,data:data,borderColor:COLORS[m],borderWidth:1.5,pointRadius:2,fill:false,spanGaps:true,tension:0.3});
+        });
+        new Chart(canvas.getContext('2d'),{type:'line',data:{labels:p.labs.map(function(_,i){return'D'+(i+1)}),datasets:datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{display:false},y:{display:false}}}});
+    });
+}
+
+var sortCol=-1,sortDir=1;
+function renderDetailTable(patients,results){
+    var head=document.getElementById('detail-head');
+    var cols=['ID','GA','BW','Category','Subtype','Draws','Markers','Score','Risk','NEC?','Correct?'];
+    head.innerHTML=cols.map(function(c,i){return'<th onclick="sortTable('+i+')">'+c+'</th>'}).join('');
+    fillDetailBody(patients,results);
+}
+
+function fillDetailBody(patients,results){
+    var body=document.getElementById('detail-body');
+    var rows=results.map(function(r,i){
+        var correct=(r.isNEC&&r.score>=4)||(!r.isNEC&&r.score<4);
+        return{p:r.patient,r:r,correct:correct,idx:i};
+    });
+    if(sortCol>=0){
+        rows.sort(function(a,b){
+            var va,vb;
+            switch(sortCol){
+                case 0:va=a.p.id;vb=b.p.id;break;
+                case 1:va=a.p.ga;vb=b.p.ga;break;
+                case 2:va=a.p.bw;vb=b.p.bw;break;
+                case 3:va=a.p.category;vb=b.p.category;break;
+                case 4:va=a.p.subtype||'';vb=b.p.subtype||'';break;
+                case 5:va=a.p.labs.length;vb=b.p.labs.length;break;
+                case 6:va=a.r.markerCount;vb=b.r.markerCount;break;
+                case 7:va=a.r.score;vb=b.r.score;break;
+                case 8:va=a.r.risk;vb=b.r.risk;break;
+                case 9:va=a.p.isNEC?1:0;vb=b.p.isNEC?1:0;break;
+                case 10:va=a.correct?1:0;vb=b.correct?1:0;break;
+                default:va=0;vb=0;
+            }
+            if(va<vb)return-1*sortDir;if(va>vb)return 1*sortDir;return 0;
+        });
+    }
+    body.innerHTML=rows.map(function(row){
+        var cls=row.p.isNEC?'nec':row.p.category==='ruleout'?'ruleout':'';
+        var riskCls=row.r.risk==='high'?'risk-high':row.r.risk==='moderate'?'risk-mod':'risk-low';
+        return'<tr class="'+cls+'">'+
+            '<td>'+row.p.id+'</td>'+
+            '<td>'+row.p.ga+'</td>'+
+            '<td>'+row.p.bw+'</td>'+
+            '<td>'+row.p.category+'</td>'+
+            '<td>'+(row.p.subtype||'—')+'</td>'+
+            '<td>'+row.p.labs.length+'</td>'+
+            '<td>'+row.r.markerCount+'</td>'+
+            '<td class="'+riskCls+'">'+row.r.score+'</td>'+
+            '<td class="'+riskCls+'">'+row.r.risk.toUpperCase()+'</td>'+
+            '<td>'+(row.p.isNEC?'YES':'no')+'</td>'+
+            '<td style="color:'+(row.correct?'var(--green)':'var(--red)')+';">'+(row.correct?'Yes':'MISS')+'</td>'+
+            '</tr>';
+    }).join('');
+}
+
+function sortTable(col){
+    if(sortCol===col)sortDir*=-1;else{sortCol=col;sortDir=1}
+    var patients=window._patients;
+    var results=runValidation(patients);
+    fillDetailBody(patients,results);
+}
+
+// ===== INIT =====
+function regenerate(){
+    var seed=parseInt(document.getElementById('seed-input').value)||42;
+    rng=mulberry32(seed);
+    var patients=generateCohort();
+    window._patients=patients;
+    renderAll(patients);
+}
+
+window.addEventListener('DOMContentLoaded',regenerate);
+</script>
+</body>
+</html>
