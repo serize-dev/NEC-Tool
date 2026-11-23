@@ -5,3 +5,5 @@ A clinical prediction engine for necrotizing enterocolitis built on 9 biomarkers
 ## Run it
 
 Open <https://serize-dev.github.io/NEC-Tool/>, or download `index.html` and open it in a browser. It loads its libraries from a CDN, so it needs an internet connection.
+
+**Demonstration software.** Not a medical device and not for clinical use. It does not replace clinical judgment.
